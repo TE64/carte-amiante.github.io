@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="initial-scale=1,user-scalable=no,maximum-scale=1,width=device-width">
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <link rel="stylesheet" href="css/leaflet.css">
+        <link rel="stylesheet" href="css/L.Control.Layers.Tree.css">
+        <link rel="stylesheet" href="css/qgis2web.css">
+        <link rel="stylesheet" href="css/fontawesome-all.min.css">
+        <style>
+        html, body, #map {
+                width: 100%;
+                height: 100%;
+                padding: 0;
+                margin: 0;
+            }
+
+            h1 {
+                font-family: "Trebuchet MS", sans-serif;
+                font-size: 1.5vw; /* Taille de police relative à la largeur de la fenêtre */
+                color: transparent;
+                background: linear-gradient(to left, #9b3287 38%, #32b9c8 68%);
+                -webkit-background-clip: text;
+                background-clip: text;
+                text-align: center;
+            }
+            .fixed-image {
+                position: absolute;
+                z-index: 1000;
+                height: auto;
+            }
+            #logo-tepa {
+                top: 0;
+                left: 0;
+                width: 9.5vw; /* Largeur relative à la largeur de la fenêtre */
+            }
+        </style>
+        <title></title>
+    </head>
+    <body>
+        <h1 id="mapTitle">Carte amiante HAP</h1>
+        <img id="logo-tepa" class="fixed-image" src="images/Logo TE PA.jpg" alt="Logo de l'entreprise">
+        <div id="map">
+        </div>
+        <script src="js/qgis2web_expressions.js"></script>
+        <script src="js/leaflet.js"></script>
+        <script src="js/L.Control.Layers.Tree.min.js"></script>
+        <script src="js/leaflet.rotatedMarker.js"></script>
+        <script src="js/leaflet.pattern.js"></script>
+        <script src="js/leaflet-hash.js"></script>
+        <script src="js/Autolinker.min.js"></script>
+        <script src="js/rbush.min.js"></script>
+        <script src="js/labelgun.min.js"></script>
+        <script src="js/labels.js"></script>
+        <script src="data/Communes_1.js"></script>
+        <script src="data/carteamiantehap_2.js"></script>
+        <script>
+        var highlightLayer;
+        function highlightFeature(e) {
+            highlightLayer = e.target;
+
+            if (e.target.feature.geometry.type === 'LineString' || e.target.feature.geometry.type === 'MultiLineString') {
+              highlightLayer.setStyle({
+                color: '#ffff00',
+              });
+            } else {
+              highlightLayer.setStyle({
+                fillColor: '#ffff00',
+                fillOpacity: 1
+              });
+            }
+        }
+        var map = L.map('map', {
+            zoomControl:false, maxZoom:28, minZoom:1
+        }).fitBounds([[42.78799209834547,-1.751776721632319],[43.66727569025666,0.2824232449397504]]);
+        var hash = new L.Hash(map);
+        map.attributionControl.setPrefix('<a href="https://github.com/tomchadwin/qgis2web" target="_blank">qgis2web</a> &middot; <a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> &middot; <a href="https://qgis.org">QGIS</a>');
+        var autolinker = new Autolinker({truncate: {length: 30, location: 'smart'}});
+        // remove popup's row if "visible-with-data"
+        function removeEmptyRowsFromPopupContent(content, feature) {
+         var tempDiv = document.createElement('div');
+         tempDiv.innerHTML = content;
+         var rows = tempDiv.querySelectorAll('tr');
+         for (var i = 0; i < rows.length; i++) {
+             var td = rows[i].querySelector('td.visible-with-data');
+             var key = td ? td.id : '';
+             if (td && td.classList.contains('visible-with-data') && feature.properties[key] == null) {
+                 rows[i].parentNode.removeChild(rows[i]);
+             }
+         }
+         return tempDiv.innerHTML;
+        }
+        // add class to format popup if it contains media
+		function addClassToPopupIfMedia(content, popup) {
+			var tempDiv = document.createElement('div');
+			tempDiv.innerHTML = content;
+			if (tempDiv.querySelector('td img')) {
+				popup._contentNode.classList.add('media');
+					// Delay to force the redraw
+					setTimeout(function() {
+						popup.update();
+					}, 10);
+			} else {
+				popup._contentNode.classList.remove('media');
+			}
+		}
+        var zoomControl = L.control.zoom({
+            position: 'topleft'
+        }).addTo(map);
+        var bounds_group = new L.featureGroup([]);
+        function setBounds() {
+        }
+        map.createPane('pane_OSMStandard_0');
+        map.getPane('pane_OSMStandard_0').style.zIndex = 400;
+        var layer_OSMStandard_0 = L.tileLayer('http://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            pane: 'pane_OSMStandard_0',
+            opacity: 1.0,
+            attribution: '<a href="https://www.openstreetmap.org/copyright">© OpenStreetMap contributors, CC-BY-SA</a>',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 0,
+            maxNativeZoom: 19
+        });
+        layer_OSMStandard_0;
+        map.addLayer(layer_OSMStandard_0);
+        function pop_Communes_1(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_Communes_1_0() {
+            return {
+                pane: 'pane_Communes_1',
+                opacity: 1,
+                color: 'rgba(70,80,90,1.0)',
+                dashArray: '',
+                lineCap: 'square',
+                lineJoin: 'bevel',
+                weight: 1.0,
+                fillOpacity: 0,
+                interactive: false,
+            }
+        }
+        map.createPane('pane_Communes_1');
+        map.getPane('pane_Communes_1').style.zIndex = 401;
+        map.getPane('pane_Communes_1').style['mix-blend-mode'] = 'normal';
+        var layer_Communes_1 = new L.geoJson(json_Communes_1, {
+            attribution: '',
+            interactive: false,
+            dataVar: 'json_Communes_1',
+            layerName: 'layer_Communes_1',
+            pane: 'pane_Communes_1',
+            onEachFeature: pop_Communes_1,
+            style: style_Communes_1_0,
+        });
+        bounds_group.addLayer(layer_Communes_1);
+        map.addLayer(layer_Communes_1);
+        function pop_carteamiantehap_2(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td class="visible-with-data" id="Identifian"colspan="2"><strong>Identifian</strong><br />' + (feature.properties['Identifian'] !== null ? autolinker.link(feature.properties['Identifian'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="Rapport fi"colspan="2"><strong>Rapport fi</strong><br />' + (feature.properties['Rapport fi'] !== null ? autolinker.link(feature.properties['Rapport fi'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">ROUTE</th>\
+                        <td class="visible-with-data" id="ROUTE">' + (feature.properties['ROUTE'] !== null ? autolinker.link(feature.properties['ROUTE'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">COMMUNE</th>\
+                        <td class="visible-with-data" id="COMMUNE">' + (feature.properties['COMMUNE'] !== null ? autolinker.link(feature.properties['COMMUNE'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">Date du ca</th>\
+                        <td class="visible-with-data" id="Date du ca">' + (feature.properties['Date du ca'] !== null ? autolinker.link(feature.properties['Date du ca'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">�paisseu</th>\
+                        <td class="visible-with-data" id="�paisseu">' + (feature.properties['�paisseu'] !== null ? autolinker.link(feature.properties['�paisseu'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="AMIANTE"colspan="2"><strong>AMIANTE</strong><br />' + (feature.properties['AMIANTE'] !== null ? autolinker.link(feature.properties['AMIANTE'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="Valeur HAP"colspan="2"><strong>Valeur HAP</strong><br />' + (feature.properties['Valeur HAP'] !== null ? autolinker.link(feature.properties['Valeur HAP'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">�paiss_1</th>\
+                        <td>' + (feature.properties['�paiss_1'] !== null ? autolinker.link(feature.properties['�paiss_1'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="AMIANTE_1"colspan="2"><strong>AMIANTE_1</strong><br />' + (feature.properties['AMIANTE_1'] !== null ? autolinker.link(feature.properties['AMIANTE_1'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="Valeur H_1"colspan="2"><strong>Valeur H_1</strong><br />' + (feature.properties['Valeur H_1'] !== null ? autolinker.link(feature.properties['Valeur H_1'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">�paiss_2</th>\
+                        <td class="visible-with-data" id="�paiss_2">' + (feature.properties['�paiss_2'] !== null ? autolinker.link(feature.properties['�paiss_2'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="AMIANTE_2"colspan="2"><strong>AMIANTE_2</strong><br />' + (feature.properties['AMIANTE_2'] !== null ? autolinker.link(feature.properties['AMIANTE_2'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="Valeur H_2"colspan="2"><strong>Valeur H_2</strong><br />' + (feature.properties['Valeur H_2'] !== null ? autolinker.link(feature.properties['Valeur H_2'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">�paiss_3</th>\
+                        <td class="visible-with-data" id="�paiss_3">' + (feature.properties['�paiss_3'] !== null ? autolinker.link(feature.properties['�paiss_3'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="AMIANTE_3"colspan="2"><strong>AMIANTE_3</strong><br />' + (feature.properties['AMIANTE_3'] !== null ? autolinker.link(feature.properties['AMIANTE_3'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="Valeur H_3"colspan="2"><strong>Valeur H_3</strong><br />' + (feature.properties['Valeur H_3'] !== null ? autolinker.link(feature.properties['Valeur H_3'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">�paiss_4</th>\
+                        <td class="visible-with-data" id="�paiss_4">' + (feature.properties['�paiss_4'] !== null ? autolinker.link(feature.properties['�paiss_4'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="AMIANTE_4"colspan="2"><strong>AMIANTE_4</strong><br />' + (feature.properties['AMIANTE_4'] !== null ? autolinker.link(feature.properties['AMIANTE_4'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="Valeur H_4"colspan="2"><strong>Valeur H_4</strong><br />' + (feature.properties['Valeur H_4'] !== null ? autolinker.link(feature.properties['Valeur H_4'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+        function style_carteamiantehap_2_0(feature) {
+            var context = {
+                feature: feature,
+                variables: {}
+            };
+            // Start of if blocks and style check logic
+            if (exp_carteamiantehap_2rule0_eval_expression(context)) {
+                  return {
+                pane: 'pane_carteamiantehap_2',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(0,154,0,1.0)',
+                interactive: true,
+            };
+                }
+                else if (exp_carteamiantehap_2rule1_eval_expression(context)) {
+                  return {
+                pane: 'pane_carteamiantehap_2',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(255,0,0,1.0)',
+                interactive: true,
+            };
+                }
+            else {
+                return {fill: false, stroke: false};
+            }
+        }
+        map.createPane('pane_carteamiantehap_2');
+        map.getPane('pane_carteamiantehap_2').style.zIndex = 402;
+        map.getPane('pane_carteamiantehap_2').style['mix-blend-mode'] = 'normal';
+        var layer_carteamiantehap_2 = new L.geoJson(json_carteamiantehap_2, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_carteamiantehap_2',
+            layerName: 'layer_carteamiantehap_2',
+            pane: 'pane_carteamiantehap_2',
+            onEachFeature: pop_carteamiantehap_2,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_carteamiantehap_2_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_carteamiantehap_2);
+        map.addLayer(layer_carteamiantehap_2);
+        var overlaysTree = [
+            {label: 'carte amiante hap<br /><table><tr><td style="text-align: center;"><img src="legend/carteamiantehap_2_Pasdamiante0.png" /></td><td>Pas d\'amiante</td></tr><tr><td style="text-align: center;"><img src="legend/carteamiantehap_2_Amiante1.png" /></td><td>Amiante</td></tr></table>', layer: layer_carteamiantehap_2},
+            {label: '<img src="legend/Communes_1.png" /> Communes', layer: layer_Communes_1},
+            {label: "OSM Standard", layer: layer_OSMStandard_0},]
+        var lay = L.control.layers.tree(null, overlaysTree,{
+            //namedToggle: true,
+            //selectorBack: false,
+            //closedSymbol: '&#8862; &#x1f5c0;',
+            //openedSymbol: '&#8863; &#x1f5c1;',
+            //collapseAll: 'Collapse all',
+            //expandAll: 'Expand all',
+            collapsed: false, 
+        });
+        lay.addTo(map);
+		document.addEventListener("DOMContentLoaded", function() {
+            // set new Layers List height which considers toggle icon
+            function newLayersListHeight() {
+                var layerScrollbarElement = document.querySelector('.leaflet-control-layers-scrollbar');
+                if (layerScrollbarElement) {
+                    var layersListElement = document.querySelector('.leaflet-control-layers-list');
+                    var originalHeight = layersListElement.style.height 
+                        || window.getComputedStyle(layersListElement).height;
+                    var newHeight = parseFloat(originalHeight) - 50;
+                    layersListElement.style.height = newHeight + 'px';
+                }
+            }
+            var isLayersListExpanded = true;
+            var controlLayersElement = document.querySelector('.leaflet-control-layers');
+            var toggleLayerControl = document.querySelector('.leaflet-control-layers-toggle');
+            // toggle Collapsed/Expanded and apply new Layers List height
+            toggleLayerControl.addEventListener('click', function() {
+                if (isLayersListExpanded) {
+                    controlLayersElement.classList.remove('leaflet-control-layers-expanded');
+                } else {
+                    controlLayersElement.classList.add('leaflet-control-layers-expanded');
+                }
+                isLayersListExpanded = !isLayersListExpanded;
+                newLayersListHeight()
+            });	
+			// apply new Layers List height if toggle layerstree
+			if (controlLayersElement) {
+				controlLayersElement.addEventListener('click', function(event) {
+					var toggleLayerHeaderPointer = event.target.closest('.leaflet-layerstree-header-pointer span');
+					if (toggleLayerHeaderPointer) {
+						newLayersListHeight();
+					}
+				});
+			}
+            // Collapsed/Expanded at Start to apply new height
+            setTimeout(function() {
+                toggleLayerControl.click();
+            }, 10);
+            setTimeout(function() {
+                toggleLayerControl.click();
+            }, 10);
+            // Collapsed touch/small screen
+            var isSmallScreen = window.innerWidth < 650;
+            if (isSmallScreen) {
+                setTimeout(function() {
+                    controlLayersElement.classList.remove('leaflet-control-layers-expanded');
+                    isLayersListExpanded = !isLayersListExpanded;
+                }, 500);
+            }  
+        });       
+        map.on("zoomend", function(){
+
+                if (map.hasLayer(layer_Communes_1)) {
+                    if (map.getZoom() <= 19 && map.getZoom() >= 19) {
+                        layer_Communes_1.eachLayer(function (layer) {
+                            layer.openTooltip();
+                        });
+                    } else {
+                        layer_Communes_1.eachLayer(function (layer) {
+                            layer.closeTooltip();
+                        });
+                    }
+                }
+        });
+        setBounds();
+        var i = 0;
+        layer_Communes_1.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((exp_label_Communes_1_eval_expression(context) !== null?String('<div style="color: #000000; font-size: 10pt; font-family: \'Arial\', sans-serif;">' + exp_label_Communes_1_eval_expression(context)) + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_Communes_1'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+        var i = 0;
+        layer_carteamiantehap_2.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['COMMUNE'] !== null?String('<div style="color: #323232; font-size: 7pt; font-family: \'Arial\', sans-serif;">' + layer.feature.properties['COMMUNE']) + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_carteamiantehap_2'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+                if (map.hasLayer(layer_Communes_1)) {
+                    if (map.getZoom() <= 19 && map.getZoom() >= 19) {
+                        layer_Communes_1.eachLayer(function (layer) {
+                            layer.openTooltip();
+                        });
+                    } else {
+                        layer_Communes_1.eachLayer(function (layer) {
+                            layer.closeTooltip();
+                        });
+                    }
+                }
+        resetLabels([layer_Communes_1,layer_carteamiantehap_2]);
+        map.on("zoomend", function(){
+            resetLabels([layer_Communes_1,layer_carteamiantehap_2]);
+        });
+        map.on("layeradd", function(){
+            resetLabels([layer_Communes_1,layer_carteamiantehap_2]);
+        });
+        map.on("layerremove", function(){
+            resetLabels([layer_Communes_1,layer_carteamiantehap_2]);
+        });
+        </script>
+    </body>
+</html>
